@@ -18,7 +18,7 @@
 #include <esp_wifi.h>
 #include <Arduino.h>
 #ifdef ESP_ARDUINO_VERSION_MAJOR
-#if ESP_ARDUINO_VERSION_MAJOR>=2
+#if ESP_ARDUINO_VERSION_MAJOR >= 2
 #define AC_ESP_WIFIEVENT_DECLARE(x) ARDUINO_EVENT_WIFI_##x
 #define AC_ESP_WIFIEVENTINFO_DECLARE(x) wifi_sta_##x
 #endif
@@ -31,19 +31,28 @@
 
 // An actual reset function dependent on the architecture
 #if defined(ARDUINO_ARCH_ESP8266)
-#define SOFT_RESET()  ESP.reset()
-#define SET_HOSTNAME(x) do { WiFi.hostname(x); } while(0)
+#define SOFT_RESET() ESP.reset()
+#define SET_HOSTNAME(x) \
+  do                    \
+  {                     \
+    WiFi.hostname(x);   \
+  } while (0)
 #elif defined(ARDUINO_ARCH_ESP32)
-#define SOFT_RESET()  ESP.restart()
-#define SET_HOSTNAME(x) do { WiFi.setHostname(x); } while(0)
+#define SOFT_RESET() ESP.restart()
+#define SET_HOSTNAME(x)  \
+  do                     \
+  {                      \
+    WiFi.setHostname(x); \
+  } while (0)
 #endif
 
 /**
  * AutoConnect default constructor. This entry activates WebServer
  * internally and the web server is allocated internal.
  */
-template<typename T>
-AutoConnectCore<T>::AutoConnectCore() : _scanCount(0), _menuTitle(_apConfig.title) {
+template <typename T>
+AutoConnectCore<T>::AutoConnectCore() : _scanCount(0), _menuTitle(_apConfig.title)
+{
   memset(&_credential, 0x00, sizeof(station_config_t));
 }
 
@@ -52,25 +61,28 @@ AutoConnectCore<T>::AutoConnectCore() : _scanCount(0), _menuTitle(_apConfig.titl
  * User's added URI handler response can be included in handleClient method.
  * @param  webServer  A reference of ESP8266WebServer instance.
  */
-template<typename T>
-AutoConnectCore<T>::AutoConnectCore(WebServer& webServer) : AutoConnectCore() {
-  _webServer = WebserverUP(&webServer, [](WebServer*){});
+template <typename T>
+AutoConnectCore<T>::AutoConnectCore(WebServer &webServer) : AutoConnectCore()
+{
+  _webServer = WebserverUP(&webServer, [](WebServer *) {});
 }
 
 /**
  * A destructor. Free AutoConnect web pages and release Web server.
  * When the server is hosted it will be purged.
  */
-template<typename T>
-AutoConnectCore<T>::~AutoConnectCore() {
+template <typename T>
+AutoConnectCore<T>::~AutoConnectCore()
+{
   end();
 }
 
 /**
  * Starts establishing WiFi connection without SSID and password.
  */
-template<typename T>
-bool AutoConnectCore<T>::begin(void) {
+template <typename T>
+bool AutoConnectCore<T>::begin(void)
+{
   return begin(nullptr, nullptr, _apConfig.beginTimeout);
 }
 
@@ -86,9 +98,10 @@ bool AutoConnectCore<T>::begin(void) {
  * @return true       Connection established, AutoConnect service started with WIFI_STA mode.
  * @return false      Could not connected, Captive portal started with WIFI_AP_STA mode.
  */
-template<typename T>
-bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigned long timeout) {
-  bool  cs;
+template <typename T>
+bool AutoConnectCore<T>::begin(const char *ssid, const char *passphrase, unsigned long timeout)
+{
+  bool cs;
 
   AC_ESP_LOG("wifi", ESP_LOG_VERBOSE);
   AC_ESP_LOG("dhcpc", ESP_LOG_VERBOSE);
@@ -102,18 +115,21 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
 
   // Ensure persistence to save the connected station_config in the SDK.
   // Correspondence to change of WiFi initial mode due to update to ESP8266 core 3.0.0.
-  if (!_isPersistent()) {
+  if (!_isPersistent())
+  {
     WiFi.persistent(true);
     AC_DBG("Set persistance\n");
   }
 
-  if (_apConfig.preserveAPMode && !_apConfig.autoRise) {
+  if (_apConfig.preserveAPMode && !_apConfig.autoRise)
+  {
     // Captive portal will not be started on connection failure. Enable Station mode
     // without disabling any current soft AP.
     cs = WiFi.enableSTA(true);
     AC_DBG("WiFi mode %d maintained, STA %s\n", WiFi.getMode(), cs ? "enabled" : "unavailable");
   }
-  else {
+  else
+  {
     // Start WiFi connection with station mode.
     WiFi.softAPdisconnect(true);
     if (!WiFi.mode(WIFI_STA))
@@ -126,7 +142,8 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
     SET_HOSTNAME(_apConfig.hostName.c_str());
 
   // Start Ticker according to the WiFi condition with Ticker is available.
-  if (_apConfig.ticker) {
+  if (_apConfig.ticker)
+  {
     _ticker.reset(new AutoConnectTicker(_apConfig.tickerPort, _apConfig.tickerOn));
     if (WiFi.status() != WL_CONNECTED)
       _ticker->start(AUTOCONNECT_FLICKER_PERIODDC, (uint8_t)AUTOCONNECT_FLICKER_WIDTHDC);
@@ -134,33 +151,39 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
 
   // If the portal is requested promptly skip the first WiFi.begin and
   // immediately start the portal.
-  if (_apConfig.immediateStart) {
+  if (_apConfig.immediateStart)
+  {
     cs = false;
     AC_DBG("Start the portal immediately\n");
   }
-  else {
-    station_config_t  current;
+  else
+  {
+    station_config_t current;
     // Restore current STA configuration
     if (_getConfigSTA(&current))
       AC_DBG("Current:%.32s\n", current.ssid);
 
     // Prepare valid configuration according to the WiFi connection right order.
     cs = true;
-    bool  as = true;  // The current is available SSID.
+    bool as = true; // The current is available SSID.
     _rfAdHocBegin = ssid == nullptr ? false : (strlen(ssid) > 0);
-    if (_rfAdHocBegin) {
+    if (_rfAdHocBegin)
+    {
       // Save for autoReconnect
-      strcpy(reinterpret_cast<char*>(_credential.ssid), ssid);
+      strcpy(reinterpret_cast<char *>(_credential.ssid), ssid);
       if (passphrase)
-        strcpy(reinterpret_cast<char*>(_credential.password), passphrase);
+        strcpy(reinterpret_cast<char *>(_credential.password), passphrase);
     }
-    else {
+    else
+    {
       // AC_PRINCIPLE_RSSI is available when SSID and password are not provided.
-      if (_apConfig.principle == AC_PRINCIPLE_RSSI) {
+      if (_apConfig.principle == AC_PRINCIPLE_RSSI)
+      {
         // Find the strongest signal from the broadcast among the saved credentials.
-        if ((cs = _loadCurrentCredential(reinterpret_cast<char*>(current.ssid), reinterpret_cast<char*>(current.password), AC_PRINCIPLE_RSSI, false))) {
-          ssid = reinterpret_cast<const char*>(current.ssid);
-          passphrase = reinterpret_cast<const char*>(current.password);
+        if ((cs = _loadCurrentCredential(reinterpret_cast<char *>(current.ssid), reinterpret_cast<char *>(current.password), AC_PRINCIPLE_RSSI, false)))
+        {
+          ssid = reinterpret_cast<const char *>(current.ssid);
+          passphrase = reinterpret_cast<const char *>(current.password);
           AC_DBG("Adopted:%.32s\n", ssid);
         }
       }
@@ -172,10 +195,11 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
       // And the failure condition for _load is
       // 1. Zero entries in AutoConnectCredentials
       // 2. Specified SSID cannot be detected by WiFi.scanNetworks
-      as = _loadAvailCredential(reinterpret_cast<const char*>(current.ssid));
+      as = _loadAvailCredential(reinterpret_cast<const char *>(current.ssid));
     }
 
-    if (cs) {
+    if (cs)
+    {
       // Advance configuration for STA mode. Restore previous configuration of STA.
       // _loadAvailCredential(reinterpret_cast<const char*>(current.ssid));
       if (!_configSTA(_apConfig.staip, _apConfig.staGateway, _apConfig.staNetmask, _apConfig.dns1, _apConfig.dns2))
@@ -184,7 +208,8 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
       // Try to connect by STA immediately.
       if (!_rfAdHocBegin)
         cs = WiFi.begin() != WL_CONNECT_FAILED;
-      else {
+      else
+      {
         disconnect(false, true);
         cs = WiFi.begin(ssid, passphrase) != WL_CONNECT_FAILED;
       }
@@ -196,7 +221,8 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
       cs &= as;
       if (cs)
         cs = _waitForConnect(timeout) == WL_CONNECTED;
-      else {
+      else
+      {
         AC_DBG_DUMB(" failed");
         // Wait for the access point to free resources with inserting
         // a delay. This duration will be eventually pulled out since
@@ -208,26 +234,30 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
     }
 
     // Reconnect with a valid credential as the autoReconnect option is enabled.
-    if (!cs && _apConfig.autoReconnect && !_rfAdHocBegin) {
+    if (!cs && _apConfig.autoReconnect && !_rfAdHocBegin)
+    {
       // Load a valid credential.
       disconnect(false, true);
-      char  ssid_c[sizeof(station_config_t::ssid) + sizeof('\0')];
-      char  password_c[sizeof(station_config_t::password) + sizeof('\0')];
+      char ssid_c[sizeof(station_config_t::ssid) + sizeof('\0')];
+      char password_c[sizeof(station_config_t::password) + sizeof('\0')];
       AC_DBG("autoReconnect");
-      if ((cs = _loadCurrentCredential(ssid_c, password_c, _apConfig.principle, strlen(reinterpret_cast<const char*>(current.ssid)) > 0))) {
+      if ((cs = _loadCurrentCredential(ssid_c, password_c, _apConfig.principle, strlen(reinterpret_cast<const char *>(current.ssid)) > 0)))
+      {
         // Try to reconnect with a stored credential.
         AC_DBG_DUMB(", %s(%s) loaded\n", ssid_c, _apConfig.principle == AC_PRINCIPLE_RECENT ? "RECENT" : "RSSI");
         _portalStatus |= AC_AUTORECONNECT;
-        const char* psk = strlen(password_c) ? password_c : nullptr;
+        const char *psk = strlen(password_c) ? password_c : nullptr;
         _configSTA(IPAddress(_credential.config.sta.ip), IPAddress(_credential.config.sta.gateway), IPAddress(_credential.config.sta.netmask), IPAddress(_credential.config.sta.dns1), IPAddress(_credential.config.sta.dns2));
         cs = WiFi.begin(ssid_c, psk) != WL_CONNECT_FAILED;
         AC_DBG("WiFi.begin(%s%s%s)", ssid_c, psk == nullptr ? "" : ",", psk == nullptr ? "" : psk);
-        if (cs) {
+        if (cs)
+        {
           _portalStatus |= AC_INPROGRESS;
           cs = _waitForConnect(timeout) == WL_CONNECTED;
         }
       }
-      if (!cs) {
+      if (!cs)
+      {
         AC_DBG_DUMB(" failed\n");
       }
     }
@@ -235,18 +265,27 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
   _currentHostIP = WiFi.localIP();
 
   // End first begin process, the captive portal specific process starts here.
-  if (cs) {
+  if (cs)
+  {
     // Activate AutoConnectUpdate if it is attached and incorporate it into the AutoConnect menu.
     _enableUpdate();
   }
   // Rushing into the portal.
-  else {
+  else
+  {
     // Connection unsuccessful, launch the captive portal.
     // The captive portal is effective at the autoRise is valid only.
-    if (_apConfig.autoRise) {
+    if (_apConfig.autoRise)
+    {
 
       // Change WiFi working mode, Enable AP with STA
+      // william: add condition  branch to support ESP32
+#if defined(ARDUINO_ARCH_ESP8266)
       WiFi.setAutoConnect(false);
+#elif defined(ARDUINO_ARCH_ESP32)
+      WiFi.setAutoReconnect(false);
+#endif
+
       disconnect(false, true);
 
       // Activate the AP mode with configured softAP and start the access point.
@@ -260,7 +299,8 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
       _startWebServer();
 
       // Start captive portal without cancellation by DetectExit.
-      if (cs) {
+      if (cs)
+      {
         // Prepare for redirecting captive portal detection.
         // Pass all URL requests to _captivePortal to disguise the captive portal.
         _startDNSServer();
@@ -269,18 +309,21 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
         // They have the effect of avoiding unintended automatic
         // reconnection by autoReconnect within handleClient.
         // Also retainPortal too.
-        bool  actReconnect = _apConfig.autoReconnect;
-        bool  actRetainPortal = _apConfig.retainPortal;
+        bool actReconnect = _apConfig.autoReconnect;
+        bool actRetainPortal = _apConfig.retainPortal;
         _apConfig.autoReconnect = false;
         _apConfig.retainPortal = true;
 
         // Start the captive portal to make a new connection
         _portalAccessPeriod = millis();
-        while (WiFi.status() != WL_CONNECTED && !_rfReset) {
+        while (WiFi.status() != WL_CONNECTED && !_rfReset)
+        {
           handleClient();
           // By an exit routine to escape from Captive portal
-          if (_whileCaptivePortal) {
-            if (!_whileCaptivePortal()) {
+          if (_whileCaptivePortal)
+          {
+            if (!_whileCaptivePortal())
+            {
               _portalStatus |= AC_INTERRUPT;
               AC_DBG("Leaved portal\n");
               break;
@@ -289,7 +332,8 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
           // Force execution of queued processes.
           yield();
           // Check timeout
-          if (_hasTimeout(_apConfig.portalTimeout)) {
+          if (_hasTimeout(_apConfig.portalTimeout))
+          {
             _portalStatus |= AC_TIMEOUT;
             AC_DBG("CP timeout exceeded:%ld\n", millis() - _portalAccessPeriod);
             break;
@@ -303,8 +347,10 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
 
         // Captive portal staying time exceeds timeout,
         // Close the portal if an option for keeping the portal is false.
-        if (!cs && (_portalStatus & (AC_TIMEOUT | AC_INTERRUPT))) {
-          if (_apConfig.retainPortal) {
+        if (!cs && (_portalStatus & (AC_TIMEOUT | AC_INTERRUPT)))
+        {
+          if (_apConfig.retainPortal)
+          {
             _purgePages();
             AC_DBG("Maintain portal\n");
           }
@@ -313,7 +359,8 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
         }
       }
     }
-    else {
+    else
+    {
       AC_DBG("Suppress autoRise\n");
     }
   }
@@ -330,8 +377,9 @@ bool AutoConnectCore<T>::begin(const char* ssid, const char* passphrase, unsigne
  * @param  ap   SSID for access point.
  * @param  psk  Password for access point.
  */
-template<typename T>
-bool AutoConnectCore<T>::config(const char* ap, const char* password) {
+template <typename T>
+bool AutoConnectCore<T>::config(const char *ap, const char *password)
+{
   _apConfig.apid = String(ap);
   _apConfig.psk = String(password);
   return true; //_config();
@@ -341,8 +389,9 @@ bool AutoConnectCore<T>::config(const char* ap, const char* password) {
  * Configure AutoConnect portal access point.
  * @param  config AutoConnectConfig class instance.
  */
-template<typename T>
-bool AutoConnectCore<T>::config(T& config) {
+template <typename T>
+bool AutoConnectCore<T>::config(T &config)
+{
   _apConfig = config;
   return true;
 }
@@ -352,12 +401,14 @@ bool AutoConnectCore<T>::config(T& config) {
  * Set up access point with internal AutoConnectConfig parameter corrected
  * by Config method.
  */
-template<typename T>
-bool AutoConnectCore<T>::_configAP(void) {
-  if ((uint32_t)_apConfig.apip == static_cast<uint32_t>(0) || (uint32_t)_apConfig.gateway == static_cast<uint32_t>(0) || (uint32_t)_apConfig.netmask == static_cast<uint32_t>(0)) {
+template <typename T>
+bool AutoConnectCore<T>::_configAP(void)
+{
+  if ((uint32_t)_apConfig.apip == static_cast<uint32_t>(0) || (uint32_t)_apConfig.gateway == static_cast<uint32_t>(0) || (uint32_t)_apConfig.netmask == static_cast<uint32_t>(0))
+  {
     AC_DBG("Warning: Contains invalid SoftAPIP address(es).\n");
   }
-  bool  rc = WiFi.softAPConfig(_apConfig.apip, _apConfig.gateway, _apConfig.netmask);
+  bool rc = WiFi.softAPConfig(_apConfig.apip, _apConfig.gateway, _apConfig.netmask);
   AC_DBG("SoftAP configure %s, %s, %s %s\n", _apConfig.apip.toString().c_str(), _apConfig.gateway.toString().c_str(), _apConfig.netmask.toString().c_str(), rc ? "" : "failed");
   return rc;
 }
@@ -372,12 +423,14 @@ bool AutoConnectCore<T>::_configAP(void) {
  * @return true     Station successfully configured
  * @return false    WiFi.config failed
  */
-template<typename T>
-bool AutoConnectCore<T>::_configSTA(const IPAddress& ip, const IPAddress& gateway, const IPAddress& netmask, const IPAddress& dns1, const IPAddress& dns2) {
-  bool  rc;
+template <typename T>
+bool AutoConnectCore<T>::_configSTA(const IPAddress &ip, const IPAddress &gateway, const IPAddress &netmask, const IPAddress &dns1, const IPAddress &dns2)
+{
+  bool rc;
 
   AC_DBG("WiFi.config(IP=%s, Gateway=%s, Subnetmask=%s, DNS1=%s, DNS2=%s)\n", ip.toString().c_str(), gateway.toString().c_str(), netmask.toString().c_str(), dns1.toString().c_str(), dns2.toString().c_str());
-  if (!(rc = WiFi.config(ip, gateway, netmask, dns1, dns2))) {
+  if (!(rc = WiFi.config(ip, gateway, netmask, dns1, dns2)))
+  {
     AC_DBG("failed, AC::begin abort\n");
   }
 #ifdef ARDUINO_ARCH_ESP8266
@@ -395,13 +448,15 @@ bool AutoConnectCore<T>::_configSTA(const IPAddress& ip, const IPAddress& gatewa
  * @param  wifiOff      If true, stops WiFi station.
  * @param  clearConfig  If true, clears the station configuration.
  */
-template<typename T>
-void AutoConnectCore<T>::disconnect(const bool wifiOff, const bool clearConfig) {
+template <typename T>
+void AutoConnectCore<T>::disconnect(const bool wifiOff, const bool clearConfig)
+{
   WiFi.mode(WIFI_STA);
 
 #if defined(ARDUINO_ARCH_ESP8266)
   wifi_station_disconnect();
-  if (clearConfig) {
+  if (clearConfig)
+  {
     struct station_config staConf;
 
     *staConf.ssid = 0;
@@ -427,8 +482,9 @@ void AutoConnectCore<T>::disconnect(const bool wifiOff, const bool clearConfig) 
  * as the boot path.
  * @return the boot uri.
  */
-template<typename T>
-String AutoConnectCore<T>::_getBootUri(void) {
+template <typename T>
+String AutoConnectCore<T>::_getBootUri(void)
+{
   if (_apConfig.bootUri == AC_ONBOOTURI_ROOT)
     return String(AUTOCONNECT_URI);
   else if (_apConfig.bootUri == AC_ONBOOTURI_HOME)
@@ -449,11 +505,12 @@ String AutoConnectCore<T>::_getBootUri(void) {
  * @return true   The config parameter has obtained configuration.
  * @return false  Station configuration does not exist.
  */
-template<typename T>
-bool AutoConnectCore<T>::_getConfigSTA(station_config_t* config) {
-  bool  rc;
-  uint8_t*  ssid;
-  uint8_t*  bssid;
+template <typename T>
+bool AutoConnectCore<T>::_getConfigSTA(station_config_t *config)
+{
+  bool rc;
+  uint8_t *ssid;
+  uint8_t *bssid;
 
 #if defined(ARDUINO_ARCH_ESP8266)
   struct station_config current;
@@ -466,7 +523,8 @@ bool AutoConnectCore<T>::_getConfigSTA(station_config_t* config) {
   ssid = current.sta.ssid;
   bssid = current.sta.bssid;
 #endif
-  if (rc) {
+  if (rc)
+  {
     memcpy(config->ssid, ssid, sizeof(station_config_t::ssid));
     memcpy(config->bssid, bssid, sizeof(station_config_t::bssid));
   }
@@ -476,8 +534,9 @@ bool AutoConnectCore<T>::_getConfigSTA(station_config_t* config) {
 /**
  * Stops AutoConnect captive portal service.
  */
-template<typename T>
-void AutoConnectCore<T>::end(void) {
+template <typename T>
+void AutoConnectCore<T>::end(void)
+{
   _currentPageElement.reset();
   _ticker.reset();
 
@@ -492,16 +551,19 @@ void AutoConnectCore<T>::end(void) {
  * @return true      A credentialfor the current connection is obtained.
  * @return false     A credential is not stored for the current connection.
  */
-template<typename T>
-bool AutoConnectCore<T>::getCurrentCredential(station_config_t* staConfig) {
-  if (!_getConfigSTA(staConfig)) {
+template <typename T>
+bool AutoConnectCore<T>::getCurrentCredential(station_config_t *staConfig)
+{
+  if (!_getConfigSTA(staConfig))
+  {
     AC_DBG("failed to get station config\n");
     return false;
   }
 
   AutoConnectCredential credt;
-  const char* ssid = reinterpret_cast<const char*>(staConfig->ssid);
-  if (credt.load(ssid, staConfig) < 0) {
+  const char *ssid = reinterpret_cast<const char *>(staConfig->ssid);
+  if (credt.load(ssid, staConfig) < 0)
+  {
     AC_DBG("%s is not in credentials\n", ssid);
     return false;
   }
@@ -514,8 +576,9 @@ bool AutoConnectCore<T>::getCurrentCredential(station_config_t* staConfig) {
  * This function is available only for ESP8266 use.
  * @return  Combined size of AutoConnect credentials and custom settings.
  */
-template<typename T>
-uint16_t AutoConnectCore<T>::getEEPROMUsedSize(void) {
+template <typename T>
+uint16_t AutoConnectCore<T>::getEEPROMUsedSize(void)
+{
 #if defined(ARDUINO_ARCH_ESP8266)
   AutoConnectCredential credentials(_apConfig.boundaryOffset);
   return _apConfig.boundaryOffset + credentials.dataSize();
@@ -530,8 +593,9 @@ uint16_t AutoConnectCore<T>::getEEPROMUsedSize(void) {
  * AutoConnect WEB interface.
  * No effects when the web server is not available.
  */
-template<typename T>
-void AutoConnectCore<T>::handleClient(void) {
+template <typename T>
+void AutoConnectCore<T>::handleClient(void)
+{
   // Is there DNS Server process next request?
   if (_dnsServer)
     _dnsServer->processNextRequest();
@@ -545,30 +609,39 @@ void AutoConnectCore<T>::handleClient(void) {
 /**
  * Handling for the AutoConnect menu request.
  */
-template<typename T>
-void AutoConnectCore<T>::handleRequest(void) {
-  bool  skipPostTicker;
+template <typename T>
+void AutoConnectCore<T>::handleRequest(void)
+{
+  bool skipPostTicker;
 
   // Controls reconnection and portal startup when WiFi is disconnected.
-  if (WiFi.status() != WL_CONNECTED) {
+  if (WiFi.status() != WL_CONNECTED)
+  {
     _portalStatus &= ~AC_ESTABLISHED;
 
     // Launch the captive portal when SoftAP is active and autoRise is
     // specified to be maintained.
     // Pass all URL requests to _captivePortal to disguise the captive portal.
-    if (_apConfig.retainPortal && _apConfig.autoRise) {
-      // Cancel AutoReconnect to ensure detection for queries to penetrate
-      // to the internet from a client.
+    if (_apConfig.retainPortal && _apConfig.autoRise)
+    {
+// Cancel AutoReconnect to ensure detection for queries to penetrate
+// to the internet from a client.
+#if defined(ARDUINO_ARCH_ESP8266)
       if (WiFi.getAutoConnect())
+#elif defined(ARDUINO_ARCH_ESP32)
+      if (WiFi.getAutoReconnect())
+#endif
         WiFi.setAutoReconnect(false);
 
       // Restart the responder for the captive portal detection.
-      if (!(WiFi.getMode() & WIFI_AP)) {
+      if (!(WiFi.getMode() & WIFI_AP))
+      {
         _softAP();
         _currentHostIP = WiFi.softAPIP();
       }
-      if (!_dnsServer) {
-        bool  cs = _onDetectExit ? _onDetectExit(_currentHostIP) : true;
+      if (!_dnsServer)
+      {
+        bool cs = _onDetectExit ? _onDetectExit(_currentHostIP) : true;
         if (cs)
           _startDNSServer();
       }
@@ -577,17 +650,20 @@ void AutoConnectCore<T>::handleRequest(void) {
     // AutoConnectConfig::reconnectInterval allows a dynamic connection
     // to a known access point without blocking the execution of
     // Sketch's loop function.
-    if (_apConfig.autoReconnect && _apConfig.reconnectInterval > 0) {
-      int8_t  sc = WiFi.scanComplete();
+    if (_apConfig.autoReconnect && _apConfig.reconnectInterval > 0)
+    {
+      int8_t sc = WiFi.scanComplete();
 
       // Scan has not triggered then starts asynchrony scan and repeats at
       // intervals of time with AutoConnectConfig::reconnectInterval value
       // multiplied by AUTOCONNECT_UNITTIME.
-      if (sc == WIFI_SCAN_FAILED) {
-        if (millis() - _attemptPeriod > ((unsigned long)_apConfig.reconnectInterval * AUTOCONNECT_UNITTIME * 1000)) {
+      if (sc == WIFI_SCAN_FAILED)
+      {
+        if (millis() - _attemptPeriod > ((unsigned long)_apConfig.reconnectInterval * AUTOCONNECT_UNITTIME * 1000))
+        {
           disconnect(false, false);
           _portalStatus &= ~(AC_AUTORECONNECT | AC_INTERRUPT | ~0xf);
-          int8_t  sn = WiFi.scanNetworks(true, true);
+          int8_t sn = WiFi.scanNetworks(true, true);
           AC_DBG("autoReconnect %s\n", sn == WIFI_SCAN_RUNNING ? "running" : "failed");
           _attemptPeriod = millis();
           (void)(sn);
@@ -597,10 +673,13 @@ void AutoConnectCore<T>::handleRequest(void) {
       // After the background scan is complete, seek a connectable
       // access point. If it is found, it will generate a connection
       // request inside.
-      else if (sc != WIFI_SCAN_RUNNING) {
+      else if (sc != WIFI_SCAN_RUNNING)
+      {
         AC_DBG("%d network(s) found\n", (int)sc);
-        if (sc > 0) {
-          if (_seekCredential(_apConfig.principle, _rfAdHocBegin ? AC_SEEKMODE_CURRENT : AC_SEEKMODE_ANY)) {
+        if (sc > 0)
+        {
+          if (_seekCredential(_apConfig.principle, _rfAdHocBegin ? AC_SEEKMODE_CURRENT : AC_SEEKMODE_ANY))
+          {
             _portalStatus |= AC_AUTORECONNECT;
             _rfConnect = true;
           }
@@ -613,7 +692,8 @@ void AutoConnectCore<T>::handleRequest(void) {
     _attemptPeriod = millis();
 
   // Handling processing requests to AutoConnect.
-  if (_rfConnect) {
+  if (_rfConnect)
+  {
     // Leave from the AP currently.
     if (WiFi.status() == WL_CONNECTED)
       disconnect(true, true);
@@ -630,38 +710,44 @@ void AutoConnectCore<T>::handleRequest(void) {
     char ssid_c[sizeof(station_config_t::ssid) + 1];
     char password_c[sizeof(station_config_t::password) + 1];
     *ssid_c = '\0';
-    strncat(ssid_c, reinterpret_cast<const char*>(_credential.ssid), sizeof(ssid_c) - 1);
+    strncat(ssid_c, reinterpret_cast<const char *>(_credential.ssid), sizeof(ssid_c) - 1);
     *password_c = '\0';
-    strncat(password_c, reinterpret_cast<const char*>(_credential.password), sizeof(password_c) - 1);
+    strncat(password_c, reinterpret_cast<const char *>(_credential.password), sizeof(password_c) - 1);
     AC_DBG("WiFi.begin(%s%s%s) ch(%d)", ssid_c, strlen(password_c) ? "," : "", strlen(password_c) ? password_c : "", (int)ch);
     _redirectURI = "";
 
     // Establish a WiFi connection with the access point.
     _portalStatus &= ~AC_TIMEOUT;
-    if (WiFi.begin(ssid_c, password_c, ch) != WL_CONNECT_FAILED) {
+    if (WiFi.begin(ssid_c, password_c, ch) != WL_CONNECT_FAILED)
+    {
       _portalStatus |= AC_INPROGRESS;
       // Wait for the connection attempt to complete and send a response
       // page to notify the connection result.
       // End the current session to complete a response page transmission.
       _rsConnect = _waitForConnect(_apConfig.beginTimeout);
-      do {
+      do
+      {
         _webServer->handleClient();
       } while (_webServer->client());
 
-      if (_rsConnect == WL_CONNECTED) {
+      if (_rsConnect == WL_CONNECTED)
+      {
         // WLAN successfully connected then release the DNS server.
         // Also, stop WIFI_AP if retainPortal not specified.
         _stopDNSServer();
-        if (!_apConfig.retainPortal) {
+        if (!_apConfig.retainPortal)
+        {
           WiFi.softAPdisconnect(true);
           WiFi.enableAP(false);
         }
-        else {
+        else
+        {
           AC_DBG("Maintain SoftAP\n");
         }
 
         // WiFi linked, validate availability
-        if (WiFi.BSSID() != NULL) {
+        if (WiFi.BSSID() != NULL)
+        {
           // Successfully conencted
           memcpy(_credential.bssid, WiFi.BSSID(), sizeof(station_config_t::bssid));
           _currentHostIP = WiFi.localIP();
@@ -679,13 +765,15 @@ void AutoConnectCore<T>::handleRequest(void) {
         // it into the AutoConnect menu.
         _enableUpdate();
       }
-      else {
+      else
+      {
         _currentHostIP = WiFi.softAPIP();
         _redirectURI = String(F(AUTOCONNECT_URI_ONFAIL));
         // Leave station connection completely
         wl_status_t wl = WiFi.status();
         unsigned long tm = millis();
-        while (wl != WL_IDLE_STATUS && wl != WL_DISCONNECTED && wl != WL_NO_SSID_AVAIL) {
+        while (wl != WL_IDLE_STATUS && wl != WL_DISCONNECTED && wl != WL_NO_SSID_AVAIL)
+        {
           if (millis() - tm > 3000)
             break;
           delay(1);
@@ -701,20 +789,24 @@ void AutoConnectCore<T>::handleRequest(void) {
       // an unconnected credential. This option allows the storage of a
       // credential regardless of the established WIFI connection.
       if (_apConfig.autoSave == AC_SAVECREDENTIAL_ALWAYS ||
-          ((_rsConnect == WL_CONNECTED) & (_apConfig.autoSave == AC_SAVECREDENTIAL_AUTO))) {
+          ((_rsConnect == WL_CONNECTED) & (_apConfig.autoSave == AC_SAVECREDENTIAL_AUTO)))
+      {
         AutoConnectCredential credit(_apConfig.boundaryOffset);
-        if (credit.save(&_credential)) {
-          AC_DBG("%.*s credential saved\n", sizeof(_credential.ssid), reinterpret_cast<const char*>(_credential.ssid));
+        if (credit.save(&_credential))
+        {
+          AC_DBG("%.*s credential saved\n", sizeof(_credential.ssid), reinterpret_cast<const char *>(_credential.ssid));
         }
-        else {
-          AC_DBG("credential %.*s save failed\n", sizeof(_credential.ssid), reinterpret_cast<const char*>(_credential.ssid));
+        else
+        {
+          AC_DBG("credential %.*s save failed\n", sizeof(_credential.ssid), reinterpret_cast<const char *>(_credential.ssid));
         }
       }
     }
     _rfConnect = false;
   }
 
-  if (_rfReset) {
+  if (_rfReset)
+  {
     // Reset or disconnect by portal operation result
     _stopPortal();
     AC_DBG("Reset\n");
@@ -723,21 +815,26 @@ void AutoConnectCore<T>::handleRequest(void) {
     delay(1000);
   }
 
-  if (_rfDisconnect) {
+  if (_rfDisconnect)
+  {
     // Response for disconnection request is not completed while
     // the session exists.
-    if (!_webServer->client()) {
+    if (!_webServer->client())
+    {
       // Disconnect from the current AP.
       disconnect(false, true);
-      while (WiFi.status() == WL_CONNECTED) {
+      while (WiFi.status() == WL_CONNECTED)
+      {
         delay(10);
         yield();
       }
       AC_DBG("Disconnected ");
-      if ((WiFi.getMode() & WIFI_AP) && !_apConfig.retainPortal) {
+      if ((WiFi.getMode() & WIFI_AP) && !_apConfig.retainPortal)
+      {
         _stopPortal();
       }
-      else {
+      else
+      {
         if (_dnsServer)
           AC_DBG_DUMB("- Portal maintained");
         AC_DBG_DUMB("\n");
@@ -745,7 +842,8 @@ void AutoConnectCore<T>::handleRequest(void) {
       // Reset disconnection request
       _rfDisconnect = false;
 
-      if (_apConfig.autoReset) {
+      if (_apConfig.autoReset)
+      {
         delay(1000);
         SOFT_RESET();
         delay(1000);
@@ -769,15 +867,18 @@ void AutoConnectCore<T>::handleRequest(void) {
 
   // Post-process for ticker
   // Adjust the ticker cycle to the latest WiFi connection state.
-  if (_ticker && !skipPostTicker) {
-    uint8_t   tWidth;
-    uint32_t  tCycle = WiFi.status() == WL_CONNECTED ? 0 : AUTOCONNECT_FLICKER_PERIODDC;
+  if (_ticker && !skipPostTicker)
+  {
+    uint8_t tWidth;
+    uint32_t tCycle = WiFi.status() == WL_CONNECTED ? 0 : AUTOCONNECT_FLICKER_PERIODDC;
     tWidth = AUTOCONNECT_FLICKER_WIDTHDC;
-    if (WiFi.getMode() & WIFI_AP) {
+    if (WiFi.getMode() & WIFI_AP)
+    {
       tCycle = AUTOCONNECT_FLICKER_PERIODAP;
       tWidth = AUTOCONNECT_FLICKER_WIDTHAP;
     }
-    if (tCycle != _ticker->getCycle()) {
+    if (tCycle != _ticker->getCycle())
+    {
       _ticker->stop();
       if (tCycle)
         _ticker->start(tCycle, tWidth);
@@ -791,25 +892,28 @@ void AutoConnectCore<T>::handleRequest(void) {
  * portal menu.
  * @param  uri  A URI string of user site's home.
  */
-template<typename T>
-void AutoConnectCore<T>::home(const String& uri) {
+template <typename T>
+void AutoConnectCore<T>::home(const String &uri)
+{
   _apConfig.homeUri = uri;
 }
 
 /**
  * Returns the current hosted ESP8266WebServer.
  */
-template<typename T>
-WebServer& AutoConnectCore<T>::host(void) {
-  return  *_webServer;
+template <typename T>
+WebServer &AutoConnectCore<T>::host(void)
+{
+  return *_webServer;
 }
 
 /**
  * Register the exit routine that is being called when WiFi connected.
  * @param  fn A function of the exit routine.
  */
-template<typename T>
-void AutoConnectCore<T>::onConnect(ConnectExit_ft fn) {
+template <typename T>
+void AutoConnectCore<T>::onConnect(ConnectExit_ft fn)
+{
   _onConnectExit = fn;
 }
 
@@ -817,8 +921,9 @@ void AutoConnectCore<T>::onConnect(ConnectExit_ft fn) {
  * Register the exit routine for the starting captive portal.
  * @param  fn A function of the exit routine.
  */
-template<typename T>
-void AutoConnectCore<T>::onDetect(DetectExit_ft fn) {
+template <typename T>
+void AutoConnectCore<T>::onDetect(DetectExit_ft fn)
+{
   _onDetectExit = fn;
 }
 
@@ -826,8 +931,9 @@ void AutoConnectCore<T>::onDetect(DetectExit_ft fn) {
  * Register the handler function for undefined url request detected.
  * @param  fn A function of the not found handler.
  */
-template<typename T>
-void AutoConnectCore<T>::onNotFound(WebServer::THandlerFunction fn) {
+template <typename T>
+void AutoConnectCore<T>::onNotFound(WebServer::THandlerFunction fn)
+{
   _notFoundHandler = fn;
 }
 
@@ -838,13 +944,15 @@ void AutoConnectCore<T>::onNotFound(WebServer::THandlerFunction fn) {
  * @return true   All credentials successfully saved.
  * @return false  Could not save.
  */
-template<typename T>
-template<typename U>
-bool AutoConnectCore<T>::saveCredential(const char* filename, U& fs) {
-  bool  rc = false;
+template <typename T>
+template <typename U>
+bool AutoConnectCore<T>::saveCredential(const char *filename, U &fs)
+{
+  bool rc = false;
 
-  File  sf = fs.open(filename, "w");
-  if (sf) {
+  File sf = fs.open(filename, "w");
+  if (sf)
+  {
     AutoConnectCredential credt(_apConfig.boundaryOffset);
     rc = credt.backup(sf);
     sf.close();
@@ -860,13 +968,15 @@ bool AutoConnectCore<T>::saveCredential(const char* filename, U& fs) {
  * @return true   Credentials successfully restored.
  * @return false  Could not restore.
  */
-template<typename T>
-template<typename U>
-bool AutoConnectCore<T>::restoreCredential(const char* filename, U& fs) {
-  bool  rc = false;
+template <typename T>
+template <typename U>
+bool AutoConnectCore<T>::restoreCredential(const char *filename, U &fs)
+{
+  bool rc = false;
 
-  File  sf = fs.open(filename, "r");
-  if (sf) {
+  File sf = fs.open(filename, "r");
+  if (sf)
+  {
     AutoConnectCredential credt(_apConfig.boundaryOffset);
     rc = credt.restore(sf);
     sf.close();
@@ -879,8 +989,9 @@ bool AutoConnectCore<T>::restoreCredential(const char* filename, U& fs) {
  * Register an exit routine to call during the captive portal.
  * @param  fn A function of the exit routine that calls while captive portal.
  */
-template<typename T>
-void AutoConnectCore<T>::whileCaptivePortal(WhileCaptivePortalExit_ft fn) {
+template <typename T>
+void AutoConnectCore<T>::whileCaptivePortal(WhileCaptivePortalExit_ft fn)
+{
   _whileCaptivePortal = fn;
 }
 
@@ -888,8 +999,9 @@ void AutoConnectCore<T>::whileCaptivePortal(WhileCaptivePortalExit_ft fn) {
  * Register an exit routine to call during WiFi connection attempting.
  * @param  fn A function of the exit routine that calls while WiFi connection attempting.
  */
-template<typename T>
-void AutoConnectCore<T>::whileConnecting(WhileConnectingExit_ft fn) {
+template <typename T>
+void AutoConnectCore<T>::whileConnecting(WhileConnectingExit_ft fn)
+{
   _whileConnecting = fn;
 }
 
@@ -902,13 +1014,15 @@ void AutoConnectCore<T>::whileConnecting(WhileConnectingExit_ft fn) {
  * @return true   Current SSID and password returned.
  * @return false  There is no available SSID.
  */
-template<typename T>
-bool AutoConnectCore<T>::_loadCurrentCredential(char* ssid, char* password, const AC_PRINCIPLE_t principle, const bool excludeCurrent) {
-  bool  rc;
+template <typename T>
+bool AutoConnectCore<T>::_loadCurrentCredential(char *ssid, char *password, const AC_PRINCIPLE_t principle, const bool excludeCurrent)
+{
+  bool rc;
 
-  if ((rc = _loadAvailCredential(nullptr, principle, excludeCurrent))) {
-    strcpy(ssid, reinterpret_cast<const char*>(_credential.ssid));
-    strcpy(password, reinterpret_cast<const char*>(_credential.password));
+  if ((rc = _loadAvailCredential(nullptr, principle, excludeCurrent)))
+  {
+    strcpy(ssid, reinterpret_cast<const char *>(_credential.ssid));
+    strcpy(password, reinterpret_cast<const char *>(_credential.password));
   }
   return rc;
 }
@@ -920,14 +1034,17 @@ bool AutoConnectCore<T>::_loadCurrentCredential(char* ssid, char* password, cons
  * @param  excludeCurrent  Skip loading the current SSID.
  * @return true   A matched credential of BSSID was loaded.
  */
-template<typename T>
-bool AutoConnectCore<T>::_loadAvailCredential(const char* ssid, const AC_PRINCIPLE_t principle, const bool excludeCurrent) {
+template <typename T>
+bool AutoConnectCore<T>::_loadAvailCredential(const char *ssid, const AC_PRINCIPLE_t principle, const bool excludeCurrent)
+{
   AutoConnectCredential credential(_apConfig.boundaryOffset);
 
-  if (credential.entries() > 0) {
+  if (credential.entries() > 0)
+  {
     // Scan the vicinity only when the saved credentials are existing.
-    if (!ssid) {
-      int8_t  nn = WiFi.scanNetworks(false, true);
+    if (!ssid)
+    {
+      int8_t nn = WiFi.scanNetworks(false, true);
       AC_DBG_DUMB(", %d network(s) found", (int)nn);
       if (nn > 0)
         return _seekCredential(principle, excludeCurrent ? AC_SEEKMODE_NEWONE : AC_SEEKMODE_ANY);
@@ -936,7 +1053,8 @@ bool AutoConnectCore<T>::_loadAvailCredential(const char* ssid, const AC_PRINCIP
     // The SSID to load was specified.
     // Set the IP configuration globally from the saved credential.
     else if (strlen(ssid))
-      if (credential.load(ssid, &_credential) >= 0) {
+      if (credential.load(ssid, &_credential) >= 0)
+      {
         // Restore loaded IP settings to the current STA configuration
         if (!_apConfig.preserveIP)
           _restoreSTA(_credential);
@@ -953,8 +1071,9 @@ bool AutoConnectCore<T>::_loadAvailCredential(const char* ssid, const AC_PRINCIP
  * @param  staConfig  A reference to station_config_t that contains the
  * configuration to restore.
  */
-template<typename T>
-void AutoConnectCore<T>::_restoreSTA(const station_config_t& staConfig) {
+template <typename T>
+void AutoConnectCore<T>::_restoreSTA(const station_config_t &staConfig)
+{
   _apConfig.staip = static_cast<IPAddress>(staConfig.config.sta.ip);
   _apConfig.staGateway = static_cast<IPAddress>(staConfig.config.sta.gateway);
   _apConfig.staNetmask = static_cast<IPAddress>(staConfig.config.sta.netmask);
@@ -972,39 +1091,47 @@ void AutoConnectCore<T>::_restoreSTA(const station_config_t& staConfig) {
  * @param  mode   Seek mode for whether to target a specific SSID.
  * @return true   A matched credential of BSSID was loaded.
  */
-template<typename T>
-bool AutoConnectCore<T>::_seekCredential(const AC_PRINCIPLE_t principle, const AC_SEEKMODE_t mode) {
+template <typename T>
+bool AutoConnectCore<T>::_seekCredential(const AC_PRINCIPLE_t principle, const AC_SEEKMODE_t mode)
+{
   AutoConnectCredential credential(_apConfig.boundaryOffset);
-  station_config_t  validConfig;  // Temporary to find the strongest RSSI.
-  int32_t minRSSI = -120;         // Min value to find the strongest RSSI.
+  station_config_t validConfig; // Temporary to find the strongest RSSI.
+  int32_t minRSSI = -120;       // Min value to find the strongest RSSI.
 
   // Seek SSID
-  const char* currentSSID = WiFi.SSID().c_str();
-  for (uint8_t n = 0; n < WiFi.scanComplete(); n++) {
-    if (mode == AC_SEEKMODE_CURRENT) {
+  const char *currentSSID = WiFi.SSID().c_str();
+  for (uint8_t n = 0; n < WiFi.scanComplete(); n++)
+  {
+    if (mode == AC_SEEKMODE_CURRENT)
+    {
       // It finds a specific access point that matches the SSID
       // specified by AutoConnect::begin.
-      if (!strcmp(WiFi.SSID(n).c_str(), reinterpret_cast<const char*>(_credential.ssid)))
+      if (!strcmp(WiFi.SSID(n).c_str(), reinterpret_cast<const char *>(_credential.ssid)))
         return true;
     }
-    else {
+    else
+    {
       // Seek valid configuration according to the WiFi connection principle.
       // Verify that an available SSIDs meet AC_PRINCIPLE_t requirements.
-      for (uint8_t i = 0; i < credential.entries(); i++) {
+      for (uint8_t i = 0; i < credential.entries(); i++)
+      {
         credential.load(i, &_credential);
         // The access point collation key is determined at compile time
         // according to the AUTOCONNECT_APKEY_SSID definition, which is
         // either BSSID or SSID.
-        if (_isValidAP(_credential, n)) {
+        if (_isValidAP(_credential, n))
+        {
           if ((mode == AC_SEEKMODE_NEWONE) && (strlen(currentSSID) > 0))
             continue;
-          if ((int32_t)WiFi.RSSI(n) < _apConfig.minRSSI) {
+          if ((int32_t)WiFi.RSSI(n) < _apConfig.minRSSI)
+          {
             // Excepts SSID that has weak RSSI under the lower limit.
-            AC_DBG("%s:%ddBm, rejected\n", reinterpret_cast<const char*>(_credential.ssid), (int)WiFi.RSSI(n));
+            AC_DBG("%s:%ddBm, rejected\n", reinterpret_cast<const char *>(_credential.ssid), (int)WiFi.RSSI(n));
             continue;
           }
           // Determine valid credential
-          switch (principle) {
+          switch (principle)
+          {
           case AC_PRINCIPLE_RECENT:
             // By BSSID, exit to keep the credential just loaded.
             _restoreSTA(_credential);
@@ -1013,7 +1140,8 @@ bool AutoConnectCore<T>::_seekCredential(const AC_PRINCIPLE_t principle, const A
           case AC_PRINCIPLE_RSSI:
             // Verify that most strong radio signal.
             // Continue seeking to find the strongest WIFI signal SSID.
-            if ((int32_t)WiFi.RSSI(n) > minRSSI) {
+            if ((int32_t)WiFi.RSSI(n) > minRSSI)
+            {
               minRSSI = WiFi.RSSI(n);
               memcpy(&validConfig, &_credential, sizeof(station_config_t));
             }
@@ -1027,7 +1155,8 @@ bool AutoConnectCore<T>::_seekCredential(const AC_PRINCIPLE_t principle, const A
 
   // Increasing the minSSI will indicate the successfully sought for AC_PRINCIPLE_RSSI.
   // Restore the credential that has maximum RSSI.
-  if (minRSSI > -120) {
+  if (minRSSI > -120)
+  {
     memcpy(&_credential, &validConfig, sizeof(station_config_t));
     _restoreSTA(_credential);
     return true;
@@ -1039,11 +1168,13 @@ bool AutoConnectCore<T>::_seekCredential(const AC_PRINCIPLE_t principle, const A
  * Changes WiFi mode to enable SoftAP and configure IPs with current
  * AutoConnectConfig settings then start SoftAP.
  */
-template<typename T>
-void AutoConnectCore<T>::_softAP(void) {
+template <typename T>
+void AutoConnectCore<T>::_softAP(void)
+{
   WiFi.persistent(false);
   WiFi.enableAP(true);
-  while (!(WiFi.getMode() & WIFI_AP)) {
+  while (!(WiFi.getMode() & WIFI_AP))
+  {
     delay(1);
     yield();
   }
@@ -1053,7 +1184,8 @@ void AutoConnectCore<T>::_softAP(void) {
 #endif
 
   WiFi.softAP(_apConfig.apid.c_str(), _apConfig.psk.c_str(), _apConfig.channel, _apConfig.hidden);
-  do {
+  do
+  {
     delay(100);
     yield();
   } while (!WiFi.softAPIP());
@@ -1062,8 +1194,10 @@ void AutoConnectCore<T>::_softAP(void) {
   _configAP();
 #endif
 
-  if (_apConfig.apip) {
-    do {
+  if (_apConfig.apip)
+  {
+    do
+    {
       delay(100);
       yield();
     } while (WiFi.softAPIP() != _apConfig.apip);
@@ -1075,20 +1209,23 @@ void AutoConnectCore<T>::_softAP(void) {
 /**
  * Starts Web server for AutoConnect service.
  */
-template<typename T>
-void AutoConnectCore<T>::_startWebServer(void) {
+template <typename T>
+void AutoConnectCore<T>::_startWebServer(void)
+{
   // Boot Web server
-  if (!_webServer) {
+  if (!_webServer)
+  {
     // Only when hosting WebServer internally
-    _webServer =  WebserverUP(new WebServer(AUTOCONNECT_HTTPPORT), std::default_delete<WebServer>() );
+    _webServer = WebserverUP(new WebServer(AUTOCONNECT_HTTPPORT), std::default_delete<WebServer>());
     AC_DBG("WebServer allocated\n");
   }
   // Discard the original the not found handler to redirect captive portal detection.
   // It is supposed to evacuate but ESP8266WebServer::_notFoundHandler is not accessible.
   _webServer->onNotFound(std::bind(&AutoConnectCore<T>::_handleNotFound, this));
   // here, Prepare PageBuilders for captive portal
-  if (!_responsePage) {
-    _responsePage.reset( new PageBuilder() );
+  if (!_responsePage)
+  {
+    _responsePage.reset(new PageBuilder());
     _responsePage->transferEncoding(PageBuilder::TransferEncoding_t::AUTOCONNECT_HTTP_TRANSFER);
     _responsePage->exitCanHandle(std::bind(&AutoConnectCore<T>::_classifyHandle, this, std::placeholders::_1, std::placeholders::_2));
     // The AutoConnect response handler includes a URL request handler generated
@@ -1102,7 +1239,8 @@ void AutoConnectCore<T>::_startWebServer(void) {
     _webServer->begin();
     AC_DBG("http server started\n");
   }
-  else {
+  else
+  {
     AC_DBG("http server readied\n");
   }
 }
@@ -1110,10 +1248,12 @@ void AutoConnectCore<T>::_startWebServer(void) {
 /**
  * Starts DNS server for Captive portal.
  */
-template<typename T>
-void AutoConnectCore<T>::_startDNSServer(void) {
+template <typename T>
+void AutoConnectCore<T>::_startDNSServer(void)
+{
   // Boot DNS server, set up for captive portal redirection.
-  if (!_dnsServer) {
+  if (!_dnsServer)
+  {
     _dnsServer.reset(new DNSServer());
     _dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
     _dnsServer->start(AUTOCONNECT_DNSPORT, "*", WiFi.softAPIP());
@@ -1126,9 +1266,11 @@ void AutoConnectCore<T>::_startDNSServer(void) {
  * Stops DNS server.
  * Free its instance to avoid multiple launches when the retainPortal enabled.
  */
-template<typename T>
-void AutoConnectCore<T>::_stopDNSServer(void) {
-  if (_dnsServer) {
+template <typename T>
+void AutoConnectCore<T>::_stopDNSServer(void)
+{
+  if (_dnsServer)
+  {
     _dnsServer->stop();
     _dnsServer.reset();
     _portalStatus &= ~AC_CAPTIVEPORTAL;
@@ -1140,11 +1282,13 @@ void AutoConnectCore<T>::_stopDNSServer(void) {
  * Disconnect from the AP and stop the AutoConnect portal.
  * Stops DNS server and flush tcp sending.
  */
-template<typename T>
-void AutoConnectCore<T>::_stopPortal(void) {
+template <typename T>
+void AutoConnectCore<T>::_stopPortal(void)
+{
   _stopDNSServer();
 
-  if (_webServer) {
+  if (_webServer)
+  {
     _webServer->client().stop();
     delay(1000);
   }
@@ -1158,10 +1302,12 @@ void AutoConnectCore<T>::_stopPortal(void) {
  * Redirect to captive portal if we got a request for another domain.
  * Return true in that case so the page handler do not try to handle the request again.
  */
-template<typename T>
-bool AutoConnectCore<T>::_captivePortal(void) {
-  String  hostHeader = _webServer->hostHeader();
-  if (!_isIP(hostHeader) && (hostHeader != WiFi.localIP().toString()) && (!hostHeader.endsWith(F(".local")))) {
+template <typename T>
+bool AutoConnectCore<T>::_captivePortal(void)
+{
+  String hostHeader = _webServer->hostHeader();
+  if (!_isIP(hostHeader) && (hostHeader != WiFi.localIP().toString()) && (!hostHeader.endsWith(F(".local"))))
+  {
     AC_DBG("Detected application, %s, %s\n", hostHeader.c_str(), WiFi.localIP().toString().c_str());
     String location = String(F("http://")) + _webServer->client().localIP().toString() + _getBootUri();
     _webServer->sendHeader(String(F("Location")), location, true);
@@ -1179,8 +1325,9 @@ bool AutoConnectCore<T>::_captivePortal(void) {
  * @return true     There is no connection from the station even the time limit exceeds.
  * @return false    Connectionless duration has not exceeded yet.
  */
-template<typename T>
-bool AutoConnectCore<T>::_hasTimeout(unsigned long timeout) {
+template <typename T>
+bool AutoConnectCore<T>::_hasTimeout(unsigned long timeout)
+{
   uint8_t staNum;
 
   if (!_apConfig.portalTimeout)
@@ -1188,8 +1335,9 @@ bool AutoConnectCore<T>::_hasTimeout(unsigned long timeout) {
 
 #if defined(ARDUINO_ARCH_ESP8266)
   staNum = 0;
-  struct station_info* station = wifi_softap_get_station_info();
-  while (station) {
+  struct station_info *station = wifi_softap_get_station_info();
+  while (station)
+  {
     staNum++;
     station = STAILQ_NEXT(station, next);
   }
@@ -1207,15 +1355,19 @@ bool AutoConnectCore<T>::_hasTimeout(unsigned long timeout) {
  * A handler that redirects access to the captive portal to the connection
  * configuration page.
  */
-template<typename T>
-void AutoConnectCore<T>::_handleNotFound(void) {
-  if (!_captivePortal()) {
-    if (_notFoundHandler) {
+template <typename T>
+void AutoConnectCore<T>::_handleNotFound(void)
+{
+  if (!_captivePortal())
+  {
+    if (_notFoundHandler)
+    {
       _notFoundHandler();
     }
-    else {
+    else
+    {
       String html404;
-      PageElement*  page404 = new PageElement(FPSTR(_PAGE_404));
+      PageElement *page404 = new PageElement(FPSTR(_PAGE_404));
       page404->addToken(F("HEAD"), std::bind(&AutoConnectCore<T>::_token_HEAD, this, std::placeholders::_1));
       page404->build(html404);
       delete page404;
@@ -1233,8 +1385,9 @@ void AutoConnectCore<T>::_handleNotFound(void) {
  * It is called from the PageBuilder of the disconnect page and indicates
  * the request for disconnection. It will be into progress after handleClient.
  */
-template<typename T>
-String AutoConnectCore<T>::_induceReset(PageArgument& args) {
+template <typename T>
+String AutoConnectCore<T>::_induceReset(PageArgument &args)
+{
   AC_UNUSED(args);
   _rfReset = true;
   return String(F(AUTOCONNECT_BUTTONLABEL_RESET AUTOCONNECT_TEXT_RESETINPROGRESS));
@@ -1245,8 +1398,9 @@ String AutoConnectCore<T>::_induceReset(PageArgument& args) {
  * It is called from the PageBuilder of the disconnect page and indicates
  * the request for disconnection. It will be into progress after handleClient.
  */
-template<typename T>
-String AutoConnectCore<T>::_induceDisconnect(PageArgument& args) {
+template <typename T>
+String AutoConnectCore<T>::_induceDisconnect(PageArgument &args)
+{
   AC_UNUSED(args);
   _rfDisconnect = true;
   return _emptyString;
@@ -1260,40 +1414,46 @@ String AutoConnectCore<T>::_induceDisconnect(PageArgument& args) {
  * @param  args http request arguments.
  * @return A redirect response including "Location:" header.
  */
-template<typename T>
-String AutoConnectCore<T>::_induceConnect(PageArgument& args) {
+template <typename T>
+String AutoConnectCore<T>::_induceConnect(PageArgument &args)
+{
   // Retrieve credential from the post method content.
-  if (args.hasArg(String(F(AUTOCONNECT_PARAMID_CRED)))) {
+  if (args.hasArg(String(F(AUTOCONNECT_PARAMID_CRED))))
+  {
     // Read from EEPROM
     AutoConnectCredential credential(_apConfig.boundaryOffset);
     credential.load(args.arg(String(F(AUTOCONNECT_PARAMID_CRED))).c_str(), &_credential);
 #ifdef AC_DEBUG
     IPAddress staip = IPAddress(_credential.config.sta.ip);
-    AC_DBG("Credential loaded:%.*s(%s)\n", sizeof(station_config_t::ssid), reinterpret_cast<const char*>(_credential.ssid), _credential.dhcp == STA_DHCP ? "DHCP" : staip.toString().c_str());
+    AC_DBG("Credential loaded:%.*s(%s)\n", sizeof(station_config_t::ssid), reinterpret_cast<const char *>(_credential.ssid), _credential.dhcp == STA_DHCP ? "DHCP" : staip.toString().c_str());
 #endif
   }
-  else {
+  else
+  {
     AC_DBG("Queried SSID:%s\n", args.arg(AUTOCONNECT_PARAMID_SSID).c_str());
     // Credential had by the post parameter.
-    strncpy(reinterpret_cast<char*>(_credential.ssid), args.arg(String(F(AUTOCONNECT_PARAMID_SSID))).c_str(), sizeof(_credential.ssid));
-    strncpy(reinterpret_cast<char*>(_credential.password), args.arg(String(F(AUTOCONNECT_PARAMID_PASS))).c_str(), sizeof(_credential.password));
+    strncpy(reinterpret_cast<char *>(_credential.ssid), args.arg(String(F(AUTOCONNECT_PARAMID_SSID))).c_str(), sizeof(_credential.ssid));
+    strncpy(reinterpret_cast<char *>(_credential.password), args.arg(String(F(AUTOCONNECT_PARAMID_PASS))).c_str(), sizeof(_credential.password));
     memset(_credential.bssid, 0x00, sizeof(station_config_t::bssid));
     // Static IP detection
-    if (args.hasArg(String(F(AUTOCONNECT_PARAMID_DHCP)))) {
+    if (args.hasArg(String(F(AUTOCONNECT_PARAMID_DHCP))))
+    {
       _credential.dhcp = STA_DHCP;
       _credential.config.sta.ip = _credential.config.sta.gateway = _credential.config.sta.netmask = _credential.config.sta.dns1 = _credential.config.sta.dns2 = 0U;
     }
-    else {
+    else
+    {
       _credential.dhcp = STA_STATIC;
       const String paramId[] = {
-        String(F(AUTOCONNECT_PARAMID_STAIP)),
-        String(F(AUTOCONNECT_PARAMID_GTWAY)),
-        String(F(AUTOCONNECT_PARAMID_NTMSK)),
-        String(F(AUTOCONNECT_PARAMID_DNS1)),
-        String(F(AUTOCONNECT_PARAMID_DNS2))
-      };
-      for (uint8_t i = 0; i < sizeof(station_config_t::_config::addr) / sizeof(uint32_t); i++) {
-        if (args.hasArg(paramId[i])) {
+          String(F(AUTOCONNECT_PARAMID_STAIP)),
+          String(F(AUTOCONNECT_PARAMID_GTWAY)),
+          String(F(AUTOCONNECT_PARAMID_NTMSK)),
+          String(F(AUTOCONNECT_PARAMID_DNS1)),
+          String(F(AUTOCONNECT_PARAMID_DNS2))};
+      for (uint8_t i = 0; i < sizeof(station_config_t::_config::addr) / sizeof(uint32_t); i++)
+      {
+        if (args.hasArg(paramId[i]))
+        {
           IPAddress ip;
           if (ip.fromString(args.arg(paramId[i])))
             _credential.config.addr[i] = static_cast<uint32_t>(ip);
@@ -1309,12 +1469,15 @@ String AutoConnectCore<T>::_induceConnect(PageArgument& args) {
   // Priority is given to the channel with the strongest signal among multiple
   // SSIDs signals.
   _connectCh = 0;
-  int8_t  maxRSSI = -128;
-  for (uint8_t nn = 0; nn < _scanCount; nn++) {
-    String  ssid = WiFi.SSID(nn);
-    int8_t  rssi = WiFi.RSSI(nn);
-    if (!strncmp(ssid.c_str(), reinterpret_cast<const char*>(_credential.ssid), sizeof(station_config_t::ssid))) {
-      if (rssi > maxRSSI) {
+  int8_t maxRSSI = -128;
+  for (uint8_t nn = 0; nn < _scanCount; nn++)
+  {
+    String ssid = WiFi.SSID(nn);
+    int8_t rssi = WiFi.RSSI(nn);
+    if (!strncmp(ssid.c_str(), reinterpret_cast<const char *>(_credential.ssid), sizeof(station_config_t::ssid)))
+    {
+      if (rssi > maxRSSI)
+      {
         _connectCh = WiFi.channel(nn);
         maxRSSI = rssi;
       }
@@ -1324,23 +1487,23 @@ String AutoConnectCore<T>::_induceConnect(PageArgument& args) {
   // Turn on the trigger to start WiFi.begin().
   _rfConnect = true;
 
-// Since v0.9.7, the redirect method changed from a 302 response to the
-// meta tag with refresh attribute.
-// This approach for ESP32 makes an inefficient choice. The waiting
-// procedure for a connection attempt should be the server side. Also,
-// the proper value of waiting time until refreshing is unknown. But
-// AutoConnect cannot avoid the following error as affairs stand now
-// that occurs at connection establishment.
-// [WiFiClient.cpp:463] connected(): Disconnected: RES: 0, ERR: 128
-// When connecting as a station, TCP reset caused by switching of the
-// radio channel occurs. Although the Espressif view is true. However,
-// the actual TCP reset occurs not at the time of switching the channel.
-// It occurs at the connection from the ESP32 to the AP is established
-// and it is possible that TCP reset is occurring in other situations.
-// So, it may not be the real cause. Client-origin redirects with HTML
-// refresh depend on the behavior of the arduino-esp32 library. Thus,
-// the implementations for redirects with HTML will continue until
-// the arduino-esp32 core supports reconnection.
+  // Since v0.9.7, the redirect method changed from a 302 response to the
+  // meta tag with refresh attribute.
+  // This approach for ESP32 makes an inefficient choice. The waiting
+  // procedure for a connection attempt should be the server side. Also,
+  // the proper value of waiting time until refreshing is unknown. But
+  // AutoConnect cannot avoid the following error as affairs stand now
+  // that occurs at connection establishment.
+  // [WiFiClient.cpp:463] connected(): Disconnected: RES: 0, ERR: 128
+  // When connecting as a station, TCP reset caused by switching of the
+  // radio channel occurs. Although the Espressif view is true. However,
+  // the actual TCP reset occurs not at the time of switching the channel.
+  // It occurs at the connection from the ESP32 to the AP is established
+  // and it is possible that TCP reset is occurring in other situations.
+  // So, it may not be the real cause. Client-origin redirects with HTML
+  // refresh depend on the behavior of the arduino-esp32 library. Thus,
+  // the implementations for redirects with HTML will continue until
+  // the arduino-esp32 core supports reconnection.
   return _emptyString;
 }
 
@@ -1348,8 +1511,9 @@ String AutoConnectCore<T>::_induceConnect(PageArgument& args) {
  * Responds response as redirect to the connection result page.
  * A destination as _redirectURI is indicated by loop to establish connection.
  */
-template<typename T>
-String AutoConnectCore<T>::_invokeResult(PageArgument& args) {
+template <typename T>
+String AutoConnectCore<T>::_invokeResult(PageArgument &args)
+{
   AC_UNUSED(args);
   String redirect = String(F("http://"));
 
@@ -1371,7 +1535,7 @@ String AutoConnectCore<T>::_invokeResult(PageArgument& args) {
   _webServer->sendHeader(String(F("Location")), redirect, true);
   _webServer->send(302, String(F("text/plain")), _emptyString);
   _webServer->client().stop();
-  _waitForEndTransmission();  // Wait for response transmission complete
+  _waitForEndTransmission(); // Wait for response transmission complete
   _responsePage->cancel();
   AC_DBG("Resulting in %s\n", redirect.c_str());
   return _emptyString;
@@ -1383,13 +1547,16 @@ String AutoConnectCore<T>::_invokeResult(PageArgument& args) {
  * Having performed the credential deletion, this handler will eventually
  * respond as the deletion result by redirecting to the URL of the SSIDs list.
  */
-template<typename T>
-String AutoConnectCore<T>::_promptDeleteCredential(PageArgument& args) {
+template <typename T>
+String AutoConnectCore<T>::_promptDeleteCredential(PageArgument &args)
+{
   AutoConnectCredential credt;
 
   _indelibleSSID = args.arg("del");
-  if (_indelibleSSID.length()) {
-    if (credt.del(_indelibleSSID.c_str())) {
+  if (_indelibleSSID.length())
+  {
+    if (credt.del(_indelibleSSID.c_str()))
+    {
       AC_DBG("%s has been deleted\n", _indelibleSSID.c_str());
       _indelibleSSID.clear();
     }
@@ -1407,7 +1574,7 @@ String AutoConnectCore<T>::_promptDeleteCredential(PageArgument& args) {
   // This is the specification as before.
   IPAddress chargeHost = _currentHostIP;
 #endif
-  // Redirect to 
+  // Redirect to
   redirect += chargeHost.toString() + F(AUTOCONNECT_URI_OPEN);
   _webServer->sendHeader(String(F("Location")), redirect, true);
   _webServer->send(302, String(F("text/plain")), _emptyString);
@@ -1424,16 +1591,18 @@ String AutoConnectCore<T>::_promptDeleteCredential(PageArgument& args) {
  * dynamically generates a response page at handleRequest. This is
  * a part of the handling of http request originated from handleClient.
  */
-template<typename T>
-bool AutoConnectCore<T>::_classifyHandle(HTTPMethod method, String uri) {
+template <typename T>
+bool AutoConnectCore<T>::_classifyHandle(HTTPMethod method, String uri)
+{
   AC_UNUSED(method);
   _portalAccessPeriod = millis();
   AC_DBG("Host:%s,%s", _webServer->hostHeader().c_str(), uri.c_str());
 
   // Here, classify requested uri
-  if (uri == _uri) {
+  if (uri == _uri)
+  {
     AC_DBG_DUMB(",already allocated\n");
-    return true;  // The response page already exists.
+    return true; // The response page already exists.
   }
 
   // Dispose decrepit page with save current uri for the upload request,
@@ -1449,7 +1618,8 @@ bool AutoConnectCore<T>::_classifyHandle(HTTPMethod method, String uri) {
   // In AutoConnectCore without the AutoConnectAux component, it is a dummy call.
   _releaseAux(uri);
 
-  if (_currentPageElement) {
+  if (_currentPageElement)
+  {
     AC_DBG_DUMB(",generated:%s", uri.c_str());
     _uri = uri;
     _responsePage->addElement(*_currentPageElement);
@@ -1460,12 +1630,14 @@ bool AutoConnectCore<T>::_classifyHandle(HTTPMethod method, String uri) {
 }
 
 /**
- * Purge allocated pages. 
+ * Purge allocated pages.
  */
-template<typename T>
-void AutoConnectCore<T>::_purgePages(void) {
+template <typename T>
+void AutoConnectCore<T>::_purgePages(void)
+{
   _responsePage->clearElements();
-  if (_currentPageElement) {
+  if (_currentPageElement)
+  {
     _currentPageElement.reset();
     _uri = String("");
   }
@@ -1478,8 +1650,9 @@ void AutoConnectCore<T>::_purgePages(void) {
  * return true  Persistence
  * return false Not persistence
  */
-template<typename T>
-inline bool AutoConnectCore<T>::_isPersistent(void) {
+template <typename T>
+inline bool AutoConnectCore<T>::_isPersistent(void)
+{
 #ifdef ARDUINO_ARCH_ESP8266
   return WiFi.getPersistent();
 #else
@@ -1492,9 +1665,11 @@ inline bool AutoConnectCore<T>::_isPersistent(void) {
  * @param  ipStr  IP string for validation.
  * @return true   Valid.
  */
-template<typename T>
-bool AutoConnectCore<T>::_isIP(const String& ipStr) {
-  for (uint8_t i = 0; i < ipStr.length(); i++) {
+template <typename T>
+bool AutoConnectCore<T>::_isIP(const String &ipStr)
+{
+  for (uint8_t i = 0; i < ipStr.length(); i++)
+  {
     char c = ipStr.charAt(i);
     if (c != '.' && (c < '0' || c > '9'))
       return false;
@@ -1507,10 +1682,12 @@ bool AutoConnectCore<T>::_isIP(const String& ipStr) {
  * @param  mac  Array of MAC address 6 bytes.
  * @return MAC address string in XX:XX:XX:XX:XX:XX format.
  */
-template<typename T>
-String AutoConnectCore<T>::_toMACAddressString(const uint8_t mac[]) {
-  String  macAddr = String("");
-  for (uint8_t i = 0; i < 6; i++) {
+template <typename T>
+String AutoConnectCore<T>::_toMACAddressString(const uint8_t mac[])
+{
+  String macAddr = String("");
+  for (uint8_t i = 0; i < 6; i++)
+  {
     char buf[3];
     sprintf(buf, "%02X", mac[i]);
     macAddr += buf;
@@ -1525,10 +1702,11 @@ String AutoConnectCore<T>::_toMACAddressString(const uint8_t mac[]) {
  * @param  rssi dBm.
  * @return A signal quality percentage.
  */
-template<typename T>
-unsigned int AutoConnectCore<T>::_toWiFiQuality(int32_t rssi) {
-  unsigned int  qu;
-  if (rssi == 31)   // WiFi signal is weak and RSSI value is unreliable.
+template <typename T>
+unsigned int AutoConnectCore<T>::_toWiFiQuality(int32_t rssi)
+{
+  unsigned int qu;
+  if (rssi == 31) // WiFi signal is weak and RSSI value is unreliable.
     qu = 0;
   else if (rssi <= -100)
     qu = 0;
@@ -1544,50 +1722,59 @@ unsigned int AutoConnectCore<T>::_toWiFiQuality(int32_t rssi) {
  * @param  timeout  Expiration time by millisecond unit.
  * @return wl_status_t
  */
-template<typename T>
-wl_status_t AutoConnectCore<T>::_waitForConnect(unsigned long timeout) {
+template <typename T>
+wl_status_t AutoConnectCore<T>::_waitForConnect(unsigned long timeout)
+{
   wl_status_t wifiStatus;
-  station_config_t  appliedConfig;
+  station_config_t appliedConfig;
   const unsigned long wt = millis();
   unsigned long pt = wt;
-  bool  exitInterrupt = false;
+  bool exitInterrupt = false;
 
   // Obtain the connecting SSID to pass to whileConnect exit.
   _getConfigSTA(&appliedConfig);
-  *(reinterpret_cast<char*>(appliedConfig.ssid) + sizeof station_config_t::ssid) = '\0';
-  String  appliedSSID = String(reinterpret_cast<char*>(appliedConfig.ssid));
+  *(reinterpret_cast<char *>(appliedConfig.ssid) + sizeof station_config_t::ssid) = '\0';
+  String appliedSSID = String(reinterpret_cast<char *>(appliedConfig.ssid));
 
   // Connection waiting
-  while ((wifiStatus = WiFi.status()) != WL_CONNECTED) {
+  while ((wifiStatus = WiFi.status()) != WL_CONNECTED)
+  {
     yield();
     unsigned long ct = millis();
-    if (timeout) {
-      if (ct - wt > timeout) {
+    if (timeout)
+    {
+      if (ct - wt > timeout)
+      {
         _portalStatus |= AC_TIMEOUT;
         break;
       }
     }
-    if (_whileConnecting) {
-      if ((exitInterrupt = !_whileConnecting(appliedSSID))) {
+    if (_whileConnecting)
+    {
+      if ((exitInterrupt = !_whileConnecting(appliedSSID)))
+      {
         _portalStatus |= AC_INTERRUPT;
         AC_DBG_DUMB("interrupted\n");
         break;
       }
     }
-    if (ct - pt > 300) {
+    if (ct - pt > 300)
+    {
       AC_DBG_DUMB("%c", '.');
       pt = millis();
     }
   }
   // Fix the connection state.
   _portalStatus &= ~AC_INPROGRESS;
-  if (wifiStatus == WL_CONNECTED) {
+  if (wifiStatus == WL_CONNECTED)
+  {
     _portalStatus |= AC_ESTABLISHED;
     AC_DBG_DUMB("established");
     IPAddress localIP = WiFi.localIP();
     // The esp8266 station reconnection has a problem and can not get
     // the IP probably. We have to wait until we get the IP.
-    while ((uint32_t)localIP == 0UL) {
+    while ((uint32_t)localIP == 0UL)
+    {
       delay(10);
       localIP = WiFi.localIP();
     }
@@ -1595,10 +1782,11 @@ wl_status_t AutoConnectCore<T>::_waitForConnect(unsigned long timeout) {
     if (_onConnectExit)
       _onConnectExit(localIP);
   }
-  else if (!exitInterrupt) {
+  else if (!exitInterrupt)
+  {
     AC_DBG_DUMB("timeout\n");
   }
-  _attemptPeriod = millis();  // Save to measure the interval between an autoReconnect.
+  _attemptPeriod = millis(); // Save to measure the interval between an autoReconnect.
   return wifiStatus;
 }
 
@@ -1608,24 +1796,28 @@ wl_status_t AutoConnectCore<T>::_waitForConnect(unsigned long timeout) {
  * by an order as the argument.
  * @param  order  AC_RECONNECT_SET or AC_RECONNECT_RESET
  */
-template<typename T>
-void AutoConnectCore<T>::_setReconnect(const AC_STARECONNECT_t order) {
+template <typename T>
+void AutoConnectCore<T>::_setReconnect(const AC_STARECONNECT_t order)
+{
 #if defined(ARDUINO_ARCH_ESP32)
-  if (order == AC_RECONNECT_SET) {
-    _disconnectEventId = WiFi.onEvent([](WiFiEvent_t e, WiFiEventInfo_t info) {
+  if (order == AC_RECONNECT_SET)
+  {
+    _disconnectEventId = WiFi.onEvent([](WiFiEvent_t e, WiFiEventInfo_t info)
+                                      {
       AC_DBG("STA lost connection:%d\n", info.AC_ESP_WIFIEVENTINFO_DECLARE(disconnected).reason);
-      AC_DBG("STA connection %s\n", WiFi.reconnect() ? "restored" : "failed");
-    }, WiFiEvent_t::AC_ESP_WIFIEVENT_DECLARE(AP_STADISCONNECTED));
+      AC_DBG("STA connection %s\n", WiFi.reconnect() ? "restored" : "failed"); }, WiFiEvent_t::AC_ESP_WIFIEVENT_DECLARE(AP_STADISCONNECTED));
     AC_DBG("Event<%d> handler registered\n", static_cast<int>(WiFiEvent_t::AC_ESP_WIFIEVENT_DECLARE(AP_STADISCONNECTED)));
   }
-  else if (order == AC_RECONNECT_RESET) {
-    if (_disconnectEventId) {
+  else if (order == AC_RECONNECT_RESET)
+  {
+    if (_disconnectEventId)
+    {
       WiFi.removeEvent(_disconnectEventId);
       AC_DBG("Event<%d> handler released\n", static_cast<int>(WiFiEvent_t::AC_ESP_WIFIEVENT_DECLARE(AP_STADISCONNECTED)));
     }
   }
 #elif defined(ARDUINO_ARCH_ESP8266)
-  bool  strc = order == AC_RECONNECT_SET ? true : false;
+  bool strc = order == AC_RECONNECT_SET ? true : false;
   WiFi.setAutoReconnect(strc);
   AC_DBG("STA reconnection:%s\n", strc ? "EN" : "DIS");
 #endif
@@ -1633,20 +1825,22 @@ void AutoConnectCore<T>::_setReconnect(const AC_STARECONNECT_t order) {
 
 /**
  * Wait for the end of transmission of the http response by closed
- * from the http client. 
+ * from the http client.
  */
-template<typename T>
-void AutoConnectCore<T>::_waitForEndTransmission(void) {
+template <typename T>
+void AutoConnectCore<T>::_waitForEndTransmission(void)
+{
 #ifdef AC_DEBUG
   AC_DBG("Leaves:");
   unsigned long lt = millis();
 #endif
-  while (_webServer->client().connected()) {
+  while (_webServer->client().connected())
+  {
     delay(1);
     yield();
   }
 #ifdef AC_DEBUG
-  // Notifies of the time taken to end the session. If the http client 
+  // Notifies of the time taken to end the session. If the http client
   // times out, AC_DEBUG must be enabled and it is necessary to confirm
   // that the http response is being transmitted correctly.
   // To trace the correctness the close sequence of TCP connection,
@@ -1667,29 +1861,29 @@ void AutoConnectCore<T>::_waitForEndTransmission(void) {
  * @param item    Entry index of SSID detected by WiFi.Scan.
  * @return true   matched.
  * @return false  unmatched.
-*/
-template<typename T>
-bool AutoConnectCore<T>::_isValidAP(const station_config_t& config, const uint8_t item) const {
+ */
+template <typename T>
+bool AutoConnectCore<T>::_isValidAP(const station_config_t &config, const uint8_t item) const
+{
 #if defined(AUTOCONNECT_APKEY_SSID)
-  return !strcmp(reinterpret_cast<const char*>(config.ssid), WiFi.SSID(item).c_str());
+  return !strcmp(reinterpret_cast<const char *>(config.ssid), WiFi.SSID(item).c_str());
 #else
-  return (config.bssid[0] == 0x00) & !memcmp(&config.bssid[0], &config.bssid[1], sizeof(station_config_t::bssid) - 1) ?
-    !strcmp(reinterpret_cast<const char*>(config.ssid), WiFi.SSID(item).c_str()) :
-    !memcmp(config.bssid, WiFi.BSSID(item), sizeof(station_config_t::bssid));
+  return (config.bssid[0] == 0x00) & !memcmp(&config.bssid[0], &config.bssid[1], sizeof(station_config_t::bssid) - 1) ? !strcmp(reinterpret_cast<const char *>(config.ssid), WiFi.SSID(item).c_str()) : !memcmp(config.bssid, WiFi.BSSID(item), sizeof(station_config_t::bssid));
 #endif
 }
 
 /**
  * After a reboot without WiFi.disconnect() a WiFi error Reason202
- * - AUTH_FAIL occurs with some routers: the connection was not broken 
+ * - AUTH_FAIL occurs with some routers: the connection was not broken
  * off correctly.
  * The _reconnectDelay makes a duration of the delay to reconnect to
  * avoid the unconnectedly. issue #292
  * This functino will be eventually pulled out since the issue will
  * be gone with the WiFi lib of the arduino-esp32 core.
  */
-template<typename T>
-void AutoConnectCore<T>::_reconnectDelay(const uint32_t ms) {
+template <typename T>
+void AutoConnectCore<T>::_reconnectDelay(const uint32_t ms)
+{
 #if defined(ARDUINO_ARCH_ESP32) && AUTOCONNECT_RECONNECT_DELAY > 0
   AC_DBG_DUMB(", %" PRIu32 " delay duration", AUTOCONNECT_RECONNECT_DELAY);
   WiFi.disconnect(true, false);
@@ -1702,7 +1896,7 @@ void AutoConnectCore<T>::_reconnectDelay(const uint32_t ms) {
 /**
  * Initialize an empty string to allow returning const String& with nothing.
  */
-template<typename T>
+template <typename T>
 const String AutoConnectCore<T>::_emptyString = String("");
 
 #endif // !_AUTOCONNECTCOREIMPL_HPP_

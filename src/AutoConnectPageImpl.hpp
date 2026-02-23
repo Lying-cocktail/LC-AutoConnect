@@ -16,7 +16,7 @@ extern "C" {
 #include <user_interface.h>
 }
 #elif defined(ARDUINO_ARCH_ESP32)
-#include <esp_spi_flash.h>
+#include "esp_flash.h" //william:support get flash size
 #include <WiFi.h>
 #define ENC_TYPE_NONE WIFI_AUTH_OPEN
 #endif
@@ -993,13 +993,18 @@ uint32_t AutoConnectCore<T>::_getChipId() {
 #endif
 }
 
+
+
 template<typename T>
 uint32_t AutoConnectCore<T>::_getFlashChipRealSize() {
 #if defined(ARDUINO_ARCH_ESP8266)
   return ESP.getFlashChipRealSize();
 #elif defined(ARDUINO_ARCH_ESP32)
-  return (uint32_t)spi_flash_get_chip_size();
-#endif
+// william add if branch to support esp32 
+  uint32_t size = 0;
+  esp_flash_get_size(nullptr, &size);
+  return size ; 
+#endif //END OF  _getFlashChipRealSize()  condition if 
 }
 
 template <typename T>

@@ -103,6 +103,9 @@ Full documentation is available on https://Hieromon.github.io/AutoConnect, some 
 
 ## Change log
 
+### [1.4.3] Feb. 23, 2026
+- 重载了三个函数，使用类型特征进行类型推断来隐式适配ESP8266与ESP32在uri参数上的差异。
+
 ### [1.4.2] Jan. 31, 2023
 - Supports whileConnecting exit called while waiting for WiFi connection. (Discussions [#553](https://github.com/Hieromon/AutoConnect/issues/553))
 - Added AutoConnect::portalStatus function.
